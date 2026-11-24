@@ -1460,10 +1460,10 @@ h3 {
   color: var(--ink-3);
 }
 
-/* Visual 0–10 Comparison Bar */
+/* Visual 0–10 Comparison Bar: highlighted [min, max] capsule + Avg point + Self dot */
 .meter-wrap {
   position: relative;
-  padding: 7px 6px;
+  padding: 7px 7px 4px;
 }
 
 .meter-track {
@@ -1473,57 +1473,75 @@ h3 {
   background: var(--surface-inset);
 }
 
-.meter-fill {
+.meter-mid-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(28, 25, 23, 0.12);
+  pointer-events: none;
+}
+
+.meter-range-span {
+  position: absolute;
+  top: 0;
   height: 100%;
   border-radius: var(--radius-pill);
-  background: var(--ink-1);
-  transition: width 460ms var(--ease-out);
+  background: rgba(28, 25, 23, 0.30);
+  box-shadow: inset 0 0 0 1px rgba(28, 25, 23, 0.14);
+  transition: left 360ms var(--ease-out), width 360ms var(--ease-out);
 }
 
-.lb-row.is-first .meter-fill {
-  background: var(--gold);
+.lb-row.is-first .meter-range-span {
+  background: rgba(169, 113, 12, 0.36);
+  box-shadow: inset 0 0 0 1px rgba(169, 113, 12, 0.32);
 }
 
-.meter-range-bar {
-  position: absolute;
-  top: 2px;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: rgba(28, 25, 23, 0.16);
+.meter-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--ink-3);
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
 }
 
 .meter-pin {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--surface);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
 }
 
-.meter-pin.pin-group {
-  background: var(--slate);
-  width: 4px;
-  height: 18px;
-  border-radius: 2px;
-  border: none;
-  box-shadow: 0 0 0 1.5px var(--surface);
+.meter-pin.pin-avg {
+  width: 5px;
+  height: 20px;
+  border-radius: 3px;
+  background: var(--ink-1);
+  box-shadow: 0 0 0 2px var(--surface), 0 1px 3px rgba(0, 0, 0, 0.22);
+  z-index: 2;
+}
+
+.lb-row.is-first .meter-pin.pin-avg {
+  background: var(--gold);
+  box-shadow: 0 0 0 2px #fdf8ea, 0 1px 3px rgba(109, 71, 4, 0.28);
 }
 
 .meter-pin.pin-self {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
   background: var(--accent);
-  width: 11px;
-  height: 11px;
-  transform: translate(-50%, -50%) rotate(45deg);
-  border-radius: 2px;
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  z-index: 3;
 }
 
 .meter-legend {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 13px;
   flex-wrap: wrap;
   font-size: 0.74rem;
   color: var(--ink-3);
@@ -1536,29 +1554,30 @@ h3 {
 }
 
 .legend-dot {
-  width: 8px;
-  height: 8px;
   display: inline-block;
+  flex-shrink: 0;
 }
 
-.legend-dot.is-self {
-  background: var(--accent);
-  transform: rotate(45deg);
-  border-radius: 1.5px;
+.legend-dot.is-range {
+  width: 16px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(28, 25, 23, 0.30);
+  border: 1px solid rgba(28, 25, 23, 0.18);
 }
 
-.legend-dot.is-bar {
-  width: 14px;
-  height: 6px;
-  border-radius: 3px;
+.legend-dot.is-avg {
+  width: 4px;
+  height: 12px;
+  border-radius: 2px;
   background: var(--ink-1);
 }
 
-.legend-dot.is-group {
-  width: 3px;
-  height: 11px;
-  border-radius: 2px;
-  background: var(--slate);
+.legend-dot.is-self {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .lb-meta-row {

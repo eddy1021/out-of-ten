@@ -1693,15 +1693,15 @@ function renderResults(stage, snap) {
         <div class="row-between">
           <div class="row-gap">
             <h2 class="card-title" style="font-size:1.1rem;">Ranked Results</h2>
-            ${
-              results.showPublicSelfGap
-                ? `
-                  <div class="meter-legend">
-                    <span class="legend-item"><span class="legend-dot is-bar"></span>Avg (excl. self)</span>
-                    <span class="legend-item"><span class="legend-dot is-self"></span>Self</span>
-                  </div>`
-                : ''
-            }
+            <div class="meter-legend">
+              <span class="legend-item"><span class="legend-dot is-range"></span>Min–max</span>
+              <span class="legend-item"><span class="legend-dot is-avg"></span>Avg${results.allowSelfRating ? ' (excl. self)' : ''}</span>
+              ${
+                results.showPublicSelfGap
+                  ? '<span class="legend-item"><span class="legend-dot is-self"></span>Self</span>'
+                  : ''
+              }
+            </div>
           </div>
           <div class="row-gap">
             ${sortControlsHtml}
@@ -1992,7 +1992,8 @@ function renderLeaderboardRow(row, results, index) {
   const primaryValue = row.overallAvg;
   const pct = primaryValue !== null ? Math.max(0, Math.min(100, (primaryValue / 10) * 100)) : 0;
 
-  const hasRange = row.minScore !== null && row.maxScore !== null && row.overallCount >= 2;
+  const hasAvg = primaryValue !== null;
+  const hasRange = row.minScore !== null && row.maxScore !== null && row.overallCount >= 1;
   const minPct = hasRange ? (row.minScore / 10) * 100 : 0;
   const rangeWidthPct = hasRange ? ((row.maxScore - row.minScore) / 10) * 100 : 0;
 
@@ -2012,15 +2013,8 @@ function renderLeaderboardRow(row, results, index) {
         ? 'No ratings from others yet'
         : 'No votes recorded'
       : row.minScore === row.maxScore
-        ? `${row.overallCount} ${voteWord}${row.overallCount === 1 ? '' : 's'}${row.overallCount >= 2 ? ' · unanimous' : ''}`
+        ? `${row.overallCount} ${voteWord}${row.overallCount === 1 ? '' : 's'}${row.overallCount >= 2 ? ` · unanimous (${row.minScore})` : ''}`
         : `${row.overallCount} ${voteWord}s · range ${row.minScore}–${row.maxScore}`;
-
-  const anonChipsHtml = !results.isOpen && row.sortedScores.length > 0
-    ? `
-      <div class="anon-chips" aria-label="Sorted anonymous scores">
-        ${row.sortedScores.map((s) => `<span class="anon-chip">${s}</span>`).join('')}
-      </div>`
-    : '';
 
   const openBreakdownHtml =
     results.isOpen && expanded && row.openBreakdown
@@ -2065,48 +2059,59 @@ function renderLeaderboardRow(row, results, index) {
 
       <div class="meter-wrap" aria-hidden="true">
         <div class="meter-track">
+          <span class="meter-mid-tick" style="left:50%"></span>
           ${
-            hasRange
-              ? `<div class="meter-range-bar" style="left:${minPct}%;width:${Math.max(rangeWidthPct, 1)}%;"></div>`
+            hasRange && row.maxScore > row.minScore
+              ? `<div class="meter-range-span" style="left:${minPct}%;width:${rangeWidthPct}%;"></div>`
               : ''
           }
-          <div class="meter-fill" style="width:${pct}%"></div>
+          ${
+            hasAvg
+              ? `<span class="meter-pin pin-avg" style="left:${pct}%" title="Average (excl. self): ${formatScore(primaryValue)}"></span>`
+              : ''
+          }
           ${
             showGap
               ? `<span class="meter-pin pin-self" style="left:${(row.selfScore / 10) * 100}%" title="Self-rating: ${row.selfScore} (not counted in avg)"></span>`
               : ''
           }
         </div>
-      </div>
-
-      <div class="lb-meta-row">
         ${
-          showGap
-            ? `
-            <div class="self-gap-row">
-              <span>Self <strong>${row.selfScore}</strong> <span class="text-muted" style="font-size:0.75rem;">(not in avg)</span></span>
-              ${
-                row.delta !== null
-                  ? `<span class="delta-pill ${deltaClass}">${esc(formatDelta(row.delta))} vs group</span>`
-                  : ''
-              }
-            </div>`
-            : results.isOpen
-              ? `<span class="text-muted" style="font-size:0.78rem;">Open breakdown</span>`
-              : `<span class="text-muted" style="font-size:0.77rem;">${results.allowSelfRating ? 'Peer scores (sorted, anon)' : 'Scores (sorted, anonymous)'}</span>`
-        }
-
-        ${
-          results.isOpen
-            ? `<button type="button" class="breakdown-toggle" data-toggle-row="${esc(row.uid)}" aria-expanded="${expanded}">
-                ${expanded ? 'Hide votes' : `See ${row.openBreakdown ? row.openBreakdown.length : 0} votes`}
-                ${ICONS.chevron}
-              </button>`
-            : anonChipsHtml
+          index === 0
+            ? '<div class="meter-scale-labels"><span>0</span><span>5</span><span>10</span></div>'
+            : ''
         }
       </div>
 
-      ${!results.isOpen && showGap ? anonChipsHtml : ''}
+      ${
+        showGap || results.isOpen
+          ? `
+          <div class="lb-meta-row">
+            ${
+              showGap
+                ? `
+                <div class="self-gap-row">
+                  <span>Self <strong>${row.selfScore}</strong> <span class="text-muted" style="font-size:0.75rem;">(not in avg)</span></span>
+                  ${
+                    row.delta !== null
+                      ? `<span class="delta-pill ${deltaClass}">${esc(formatDelta(row.delta))} vs group</span>`
+                      : ''
+                  }
+                </div>`
+                : `<span class="text-muted" style="font-size:0.78rem;">Open breakdown</span>`
+            }
+            ${
+              results.isOpen
+                ? `<button type="button" class="breakdown-toggle" data-toggle-row="${esc(row.uid)}" aria-expanded="${expanded}">
+                    ${expanded ? 'Hide votes' : `See ${row.openBreakdown ? row.openBreakdown.length : 0} votes`}
+                    ${ICONS.chevron}
+                  </button>`
+                : '<span class="text-muted" style="font-size:0.76rem;">Individual votes hidden</span>'
+            }
+          </div>`
+          : ''
+      }
+
       ${openBreakdownHtml}
     </article>
   `;

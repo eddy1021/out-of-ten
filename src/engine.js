@@ -245,8 +245,8 @@ export function describeRoundRules(settings) {
       visibilityLabel: 'Anonymous votes',
       selfLabel: 'Include self',
       headline:
-        'Peer ratings stay anonymous (shuffled, no names). Self-ratings are NOT counted in averages, and each player’s self-rating vs. group IS shown publicly.',
-      shortTag: 'Peer votes anonymous · Avg excludes self · Self shown',
+        'Individual ratings stay hidden — only the average and min–max range are shown. Self-ratings are NOT counted in averages, and each player’s self-rating vs. group IS shown publicly.',
+      shortTag: 'Individual votes hidden · Avg excludes self · Self shown',
     };
   }
 
@@ -255,8 +255,8 @@ export function describeRoundRules(settings) {
       visibilityLabel: 'Anonymous votes',
       selfLabel: 'Include self',
       headline:
-        'Averages (excluding self-ratings) and shuffled peer scores only — no names attached. Your own Self vs. Group comparison is shown privately only to you.',
-      shortTag: 'Strictly anonymous · Avg excludes self',
+        'Individual ratings stay hidden — only the average (excluding self-rating) and min–max range are shown. Your own Self vs. Group comparison is shown privately only to you.',
+      shortTag: 'Individual votes hidden · Avg excludes self',
     };
   }
 
@@ -264,8 +264,8 @@ export function describeRoundRules(settings) {
     visibilityLabel: 'Anonymous votes',
     selfLabel: 'Others only',
     headline:
-      'Averages and shuffled score chips only — no names attached. You do not rate yourself.',
-    shortTag: 'Strictly anonymous · No self-rating',
+      'Individual ratings stay hidden — only the average and min–max range are shown. You do not rate yourself.',
+    shortTag: 'Individual votes hidden · No self-rating',
   };
 }
 
@@ -389,8 +389,8 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
     const maxScore = peerScores.length ? Math.max(...peerScores) : null;
     const spread = minScore !== null && maxScore !== null ? maxScore - minScore : null;
 
-    // Sort anonymous peer chips ascending so insertion order CANNOT leak which voter gave which score
-    const sortedScores = [...peerScores].sort((a, b) => a - b);
+    // Individual anonymous votes are intentionally withheld (only avg and min–max range exposed)
+    const sortedScores = isOpen ? [...peerScores].sort((a, b) => a - b) : null;
 
     // Sort open breakdown: self first (not included in avg), then score desc, then name
     openBreakdown.sort((a, b) => {

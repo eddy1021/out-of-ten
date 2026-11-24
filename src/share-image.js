@@ -261,7 +261,6 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
   const rowW = INNER_W;
   const pad = 28;
   const showGap = results.showPublicSelfGap && row.selfScore !== null;
-  const isAnon = !results.isOpen;
 
   ctx.save();
   ctx.shadowColor = 'rgba(28, 25, 23, 0.055)';
@@ -362,56 +361,66 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
   ctx.fillStyle = COLORS.ink3;
   ctx.fillText(sub, nameX, topY + 52);
 
-  // Horizontal 0–10 comparison bar (filled bar = peer avg, excluding self)
-  const trackX = rowX + pad + 6;
-  const trackW = rowW - (pad + 6) * 2;
-  const trackY = y + 102;
+  // Horizontal 0–10 comparison bar: highlighted [min, max] capsule + Avg tick + Self dot
+  const trackX = rowX + pad + 8;
+  const trackW = rowW - (pad + 8) * 2;
+  const trackY = y + 104;
   const trackH = 16;
 
   fillRoundRect(ctx, trackX, trackY, trackW, trackH, trackH / 2, COLORS.inset);
 
-  // Range band (`min–max` of peer votes)
-  if (row.minScore !== null && row.maxScore !== null && row.overallCount >= 2) {
+  // Subtle midpoint hairline tick (5 / 10)
+  ctx.fillStyle = 'rgba(28, 25, 23, 0.14)';
+  ctx.fillRect(trackX + trackW / 2 - 1, trackY, 2, trackH);
+
+  // Highlighted [min, max] peer-vote band
+  if (row.minScore !== null && row.maxScore !== null && row.maxScore > row.minScore) {
     const minPx = trackX + (row.minScore / 10) * trackW;
     const maxPx = trackX + (row.maxScore / 10) * trackW;
     fillRoundRect(
       ctx,
       minPx,
-      trackY + 3,
-      Math.max(maxPx - minPx, 8),
-      trackH - 6,
-      (trackH - 6) / 2,
-      'rgba(28, 25, 23, 0.17)'
+      trackY,
+      Math.max(maxPx - minPx, trackH),
+      trackH,
+      trackH / 2,
+      isTop ? 'rgba(169, 113, 12, 0.36)' : 'rgba(28, 25, 23, 0.28)',
+      isTop ? 'rgba(169, 113, 12, 0.45)' : 'rgba(28, 25, 23, 0.22)',
+      1.5
     );
   }
 
-  // Avg bar fill (peer average, strictly excluding self-rating)
-  if (row.overallAvg !== null && row.overallAvg > 0) {
-    const fillW = Math.max((row.overallAvg / 10) * trackW, trackH);
-    fillRoundRect(ctx, trackX, trackY, fillW, trackH, trackH / 2, isTop ? COLORS.gold : COLORS.ink1);
+  // Avg vertical rounded pill marker (peer avg, strictly excl. self)
+  if (row.overallAvg !== null) {
+    const ax = trackX + (row.overallAvg / 10) * trackW;
+    const haloBg = isTop ? COLORS.surfaceGoldBot : COLORS.surface;
+    fillRoundRect(ctx, ax - 6.5, trackY - 10, 13, trackH + 20, 6.5, haloBg);
+    fillRoundRect(ctx, ax - 4, trackY - 7.5, 8, trackH + 15, 4, isTop ? COLORS.gold : COLORS.ink1);
   }
 
-  // Self diamond marker (terracotta rotated square, plotted for comparison only)
+  // Self-rating dot (terracotta circle, plotted on top so vertical Avg tick still peeks above/below on ties)
   if (showGap && row.selfScore !== null) {
     const sx = trackX + (row.selfScore / 10) * trackW;
     const sy = trackY + trackH / 2;
-    ctx.save();
-    ctx.translate(sx, sy);
-    ctx.rotate(Math.PI / 4);
-    fillRoundRect(ctx, -10.5, -10.5, 21, 21, 3.5, COLORS.surface);
-    fillRoundRect(ctx, -8, -8, 16, 16, 2.5, COLORS.accent);
-    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(sx, sy, 13, 0, Math.PI * 2);
+    ctx.fillStyle = isTop ? COLORS.surfaceGoldBot : COLORS.surface;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(sx, sy, 9.5, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.accent;
+    ctx.fill();
   }
 
-  // Footer details inside row (Self vs Group badges or sorted anonymous peer chips)
-  const footY = y + 132;
+  // Tiny 0 / 5 / 10 tick caption under bar (row footer keeps cards clean & hides individual anonymous chips)
+  const footY = y + 136;
   if (showGap) {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     const baseText = `Self ${row.selfScore}  (not in avg)`;
     ctx.font = `600 20px ${FONT_BODY}`;
     ctx.fillStyle = COLORS.ink2;
-    ctx.fillText(baseText, rowX + pad, footY + 15);
+    ctx.fillText(baseText, rowX + pad, footY + 13);
     const btW = ctx.measureText(baseText).width;
 
     if (row.delta !== null) {
@@ -424,7 +433,7 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
         badgeBg = COLORS.slateSoft;
         badgeFg = COLORS.slateInk;
       }
-      drawPill(ctx, rowX + pad + btW + 14, footY + 1, `${formatDelta(row.delta)} vs group`, {
+      drawPill(ctx, rowX + pad + btW + 14, footY - 1, `${formatDelta(row.delta)} vs group`, {
         bg: badgeBg,
         fg: badgeFg,
         font: `700 17px ${FONT_BODY}`,
@@ -432,38 +441,21 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
         padX: 11,
       });
     }
-  } else if (isAnon && row.sortedScores && row.sortedScores.length > 0) {
-    ctx.font = `500 18px ${FONT_BODY}`;
+    // Right-side quiet min–max endpoints (0..10 scale hint)
+    ctx.textAlign = 'right';
+    ctx.font = `500 17px ${FONT_BODY}`;
     ctx.fillStyle = COLORS.ink3;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(
-      results.allowSelfRating ? 'Peer scores (sorted, anon)' : 'Scores (sorted, anonymous)',
-      rowX + pad,
-      footY + 15
-    );
-
-    const chips = row.sortedScores;
-    const chipW = 34;
-    const chipH = 29;
-    const gap = 6;
-    const totalChipW = chips.length * chipW + (chips.length - 1) * gap;
-    let cx = rightX - totalChipW;
-    chips.forEach((sc) => {
-      fillRoundRect(ctx, cx, footY + 1, chipW, chipH, 8, COLORS.inset);
-      ctx.font = `700 18px ${FONT_DISPLAY}`;
-      ctx.fillStyle = COLORS.ink2;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(String(sc), cx + chipW / 2, footY + 1 + chipH / 2 + 1);
-      cx += chipW + gap;
-    });
-  } else if (row.sortedScores && row.sortedScores.length > 0) {
-    ctx.font = `500 18px ${FONT_BODY}`;
+    ctx.fillText('scale 0–10', rightX, footY + 13);
+  } else {
+    ctx.font = `600 17px ${FONT_BODY}`;
     ctx.fillStyle = COLORS.ink3;
-    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`Votes: ${row.sortedScores.join(' · ')}`, rowX + pad, footY + 15);
+    ctx.textAlign = 'left';
+    ctx.fillText('0', trackX, footY + 6);
+    ctx.textAlign = 'center';
+    ctx.fillText('5', trackX + trackW / 2, footY + 6);
+    ctx.textAlign = 'right';
+    ctx.fillText('10', trackX + trackW, footY + 6);
   }
 }
 
@@ -634,7 +626,7 @@ export async function renderRoundShareImage(
   const legendH = 44;
 
   let bodyH = 0;
-  const BAR_ROW_H = 178;
+  const BAR_ROW_H = results.showPublicSelfGap ? 178 : 162;
   const BAR_ROW_GAP = 16;
   const COMPACT_ROW_H = 64;
   const COMPACT_HEAD_H = 48;
@@ -862,25 +854,35 @@ export async function renderRoundShareImage(
     y + legendH / 2
   );
 
-  if (layout.mode === 'bars' && results.showPublicSelfGap) {
-    // Visual bar legend right-aligned
-    let lx = PAD_X + INNER_W - 6;
+  if (layout.mode === 'bars') {
+    // Visual bar legend right-aligned: [min–max] capsule · Avg tick · (optional Self dot)
+    const midY = y + legendH / 2;
+    let lx = PAD_X + INNER_W - 4;
     ctx.textAlign = 'right';
-    ctx.font = `600 19px ${FONT_BODY}`;
+    ctx.font = `600 18px ${FONT_BODY}`;
+
+    if (results.showPublicSelfGap) {
+      ctx.fillStyle = COLORS.ink2;
+      ctx.fillText('Self', lx, midY);
+      lx -= ctx.measureText('Self').width + 16;
+      ctx.beginPath();
+      ctx.arc(lx, midY, 6.5, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.accent;
+      ctx.fill();
+      lx -= 28;
+    }
+
+    const avgLbl = results.allowSelfRating ? 'Avg (excl. self)' : 'Avg';
     ctx.fillStyle = COLORS.ink2;
-    ctx.fillText('Self', lx, y + legendH / 2);
-    lx -= ctx.measureText('Self').width + 18;
-    ctx.save();
-    ctx.translate(lx, y + legendH / 2);
-    ctx.rotate(Math.PI / 4);
-    fillRoundRect(ctx, -6, -6, 12, 12, 2, COLORS.accent);
-    ctx.restore();
+    ctx.fillText(avgLbl, lx, midY);
+    lx -= ctx.measureText(avgLbl).width + 14;
+    fillRoundRect(ctx, lx - 3, midY - 9, 6, 18, 3, COLORS.ink1);
     lx -= 28;
 
     ctx.fillStyle = COLORS.ink2;
-    ctx.fillText('Avg (excl. self)', lx, y + legendH / 2);
-    lx -= ctx.measureText('Avg (excl. self)').width + 12;
-    fillRoundRect(ctx, lx - 22, y + legendH / 2 - 4, 22, 8, 4, COLORS.ink1);
+    ctx.fillText('Min–max', lx, midY);
+    lx -= ctx.measureText('Min–max').width + 12;
+    fillRoundRect(ctx, lx - 24, midY - 5, 24, 10, 5, 'rgba(28, 25, 23, 0.28)', 'rgba(28, 25, 23, 0.24)', 1);
   } else if (layout.mode !== 'bars') {
     ctx.textAlign = 'right';
     ctx.font = `600 19px ${FONT_BODY}`;
