@@ -1637,8 +1637,7 @@ function renderResults(stage, snap) {
   const sortControlsHtml = results.showPublicSelfGap
     ? `
       <div class="sort-pills" role="group" aria-label="Sort leaderboard by">
-        <button type="button" class="sort-pill ${results.effectiveSort === 'overall' ? 'is-active' : ''}" data-sort="overall">Overall avg</button>
-        <button type="button" class="sort-pill ${results.effectiveSort === 'group' ? 'is-active' : ''}" data-sort="group">Group avg</button>
+        <button type="button" class="sort-pill ${results.effectiveSort === 'overall' ? 'is-active' : ''}" data-sort="overall">Avg score</button>
         <button type="button" class="sort-pill ${results.effectiveSort === 'delta' ? 'is-active' : ''}" data-sort="delta">Self vs. group</button>
       </div>`
     : '';
@@ -1698,7 +1697,7 @@ function renderResults(stage, snap) {
               results.showPublicSelfGap
                 ? `
                   <div class="meter-legend">
-                    <span class="legend-item"><span class="legend-dot is-group"></span>Group avg</span>
+                    <span class="legend-item"><span class="legend-dot is-bar"></span>Avg (excl. self)</span>
                     <span class="legend-item"><span class="legend-dot is-self"></span>Self</span>
                   </div>`
                 : ''
@@ -1990,8 +1989,7 @@ function renderPrivateSelfCard(insight) {
 function renderLeaderboardRow(row, results, index) {
   const isMe = row.uid === appState.uid;
   const isTop = row.rank === 1 && row.overallAvg !== null;
-  const primaryValue =
-    results.effectiveSort === 'group' && row.othersAvg !== null ? row.othersAvg : row.overallAvg;
+  const primaryValue = row.overallAvg;
   const pct = primaryValue !== null ? Math.max(0, Math.min(100, (primaryValue / 10) * 100)) : 0;
 
   const hasRange = row.minScore !== null && row.maxScore !== null && row.overallCount >= 2;
@@ -2006,13 +2004,16 @@ function renderLeaderboardRow(row, results, index) {
   }
 
   const expanded = results.isOpen && appState.expandedRows.has(row.uid);
+  const voteWord = results.allowSelfRating ? 'peer vote' : 'vote';
 
   const subText =
     row.overallCount === 0
-      ? 'No votes recorded'
+      ? results.allowSelfRating
+        ? 'No ratings from others yet'
+        : 'No votes recorded'
       : row.minScore === row.maxScore
-        ? `${row.overallCount} vote${row.overallCount === 1 ? '' : 's'} · unanimous`
-        : `${row.overallCount} votes · range ${row.minScore}–${row.maxScore}`;
+        ? `${row.overallCount} ${voteWord}${row.overallCount === 1 ? '' : 's'}${row.overallCount >= 2 ? ' · unanimous' : ''}`
+        : `${row.overallCount} ${voteWord}s · range ${row.minScore}–${row.maxScore}`;
 
   const anonChipsHtml = !results.isOpen && row.sortedScores.length > 0
     ? `
@@ -2058,7 +2059,7 @@ function renderLeaderboardRow(row, results, index) {
         </div>
         <div class="lb-score-block">
           <div class="lb-score-big">${primaryValue !== null ? esc(formatScore(primaryValue)) : '—'}</div>
-          <div class="lb-score-denom">${results.effectiveSort === 'group' ? 'group / 10' : 'out of 10'}</div>
+          <div class="lb-score-denom">${results.allowSelfRating ? 'avg excl. self' : 'out of 10'}</div>
         </div>
       </div>
 
@@ -2071,13 +2072,8 @@ function renderLeaderboardRow(row, results, index) {
           }
           <div class="meter-fill" style="width:${pct}%"></div>
           ${
-            showGap && row.othersAvg !== null
-              ? `<span class="meter-pin pin-group" style="left:${(row.othersAvg / 10) * 100}%" title="Group avg: ${formatScore(row.othersAvg)}"></span>`
-              : ''
-          }
-          ${
             showGap
-              ? `<span class="meter-pin pin-self" style="left:${(row.selfScore / 10) * 100}%" title="Self-rating: ${row.selfScore}"></span>`
+              ? `<span class="meter-pin pin-self" style="left:${(row.selfScore / 10) * 100}%" title="Self-rating: ${row.selfScore} (not counted in avg)"></span>`
               : ''
           }
         </div>
@@ -2088,9 +2084,7 @@ function renderLeaderboardRow(row, results, index) {
           showGap
             ? `
             <div class="self-gap-row">
-              <span>Self <strong>${row.selfScore}</strong></span>
-              <span aria-hidden="true">·</span>
-              <span>Group <strong>${row.othersAvg !== null ? esc(formatScore(row.othersAvg)) : '—'}</strong></span>
+              <span>Self <strong>${row.selfScore}</strong> <span class="text-muted" style="font-size:0.75rem;">(not in avg)</span></span>
               ${
                 row.delta !== null
                   ? `<span class="delta-pill ${deltaClass}">${esc(formatDelta(row.delta))} vs group</span>`
@@ -2099,7 +2093,7 @@ function renderLeaderboardRow(row, results, index) {
             </div>`
             : results.isOpen
               ? `<span class="text-muted" style="font-size:0.78rem;">Open breakdown</span>`
-              : `<span class="text-muted" style="font-size:0.77rem;">Scores (sorted, anonymous)</span>`
+              : `<span class="text-muted" style="font-size:0.77rem;">${results.allowSelfRating ? 'Peer scores (sorted, anon)' : 'Scores (sorted, anonymous)'}</span>`
         }
 
         ${

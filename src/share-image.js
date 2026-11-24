@@ -336,7 +336,7 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
 
     ctx.font = `600 17px ${FONT_BODY}`;
     ctx.fillStyle = COLORS.ink3;
-    ctx.fillText('out of 10', rightX, topY + 56);
+    ctx.fillText(results.allowSelfRating ? 'avg excl. self' : 'out of 10', rightX, topY + 56);
   }
 
   // Name + subtitle
@@ -349,17 +349,20 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
   ctx.fillStyle = COLORS.ink1;
   ctx.fillText(truncateText(ctx, row.name, maxNameW), nameX, topY + 26);
 
+  const voteWord = results.allowSelfRating ? 'peer vote' : 'vote';
   const sub =
     row.overallCount === 0
-      ? 'No votes recorded'
+      ? results.allowSelfRating
+        ? 'No ratings from others'
+        : 'No votes recorded'
       : row.minScore === row.maxScore
-        ? `${row.overallCount} vote${row.overallCount === 1 ? '' : 's'} · unanimous`
-        : `${row.overallCount} votes · range ${row.minScore}–${row.maxScore}`;
+        ? `${row.overallCount} ${voteWord}${row.overallCount === 1 ? '' : 's'}${row.overallCount >= 2 ? ' · unanimous' : ''}`
+        : `${row.overallCount} ${voteWord}s · range ${row.minScore}–${row.maxScore}`;
   ctx.font = `500 20px ${FONT_BODY}`;
   ctx.fillStyle = COLORS.ink3;
   ctx.fillText(sub, nameX, topY + 52);
 
-  // Horizontal 0–10 comparison bar
+  // Horizontal 0–10 comparison bar (filled bar = peer avg, excluding self)
   const trackX = rowX + pad + 6;
   const trackW = rowW - (pad + 6) * 2;
   const trackY = y + 102;
@@ -367,7 +370,7 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
 
   fillRoundRect(ctx, trackX, trackY, trackW, trackH, trackH / 2, COLORS.inset);
 
-  // Range band (`min–max`)
+  // Range band (`min–max` of peer votes)
   if (row.minScore !== null && row.maxScore !== null && row.overallCount >= 2) {
     const minPx = trackX + (row.minScore / 10) * trackW;
     const maxPx = trackX + (row.maxScore / 10) * trackW;
@@ -382,20 +385,13 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
     );
   }
 
-  // Avg bar fill
+  // Avg bar fill (peer average, strictly excluding self-rating)
   if (row.overallAvg !== null && row.overallAvg > 0) {
     const fillW = Math.max((row.overallAvg / 10) * trackW, trackH);
     fillRoundRect(ctx, trackX, trackY, fillW, trackH, trackH / 2, isTop ? COLORS.gold : COLORS.ink1);
   }
 
-  // Group avg tick marker (slate vertical bar)
-  if (showGap && row.othersAvg !== null) {
-    const gx = trackX + (row.othersAvg / 10) * trackW;
-    fillRoundRect(ctx, gx - 4.5, trackY - 8, 9, trackH + 16, 4, COLORS.surface);
-    fillRoundRect(ctx, gx - 2.5, trackY - 6, 5, trackH + 12, 2.5, COLORS.slate);
-  }
-
-  // Self diamond marker (terracotta rotated square)
+  // Self diamond marker (terracotta rotated square, plotted for comparison only)
   if (showGap && row.selfScore !== null) {
     const sx = trackX + (row.selfScore / 10) * trackW;
     const sy = trackY + trackH / 2;
@@ -407,13 +403,12 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
     ctx.restore();
   }
 
-  // Footer details inside row (Self vs Group badges or sorted anonymous chips)
+  // Footer details inside row (Self vs Group badges or sorted anonymous peer chips)
   const footY = y + 132;
   if (showGap) {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    const othersTxt = row.othersAvg !== null ? formatScore(row.othersAvg) : '—';
-    const baseText = `Self ${row.selfScore}  ·  Group ${othersTxt}`;
+    const baseText = `Self ${row.selfScore}  (not in avg)`;
     ctx.font = `600 20px ${FONT_BODY}`;
     ctx.fillStyle = COLORS.ink2;
     ctx.fillText(baseText, rowX + pad, footY + 15);
@@ -442,7 +437,11 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
     ctx.fillStyle = COLORS.ink3;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('Scores (sorted, anonymous)', rowX + pad, footY + 15);
+    ctx.fillText(
+      results.allowSelfRating ? 'Peer scores (sorted, anon)' : 'Scores (sorted, anonymous)',
+      rowX + pad,
+      footY + 15
+    );
 
     const chips = row.sortedScores;
     const chipW = 34;
@@ -879,15 +878,19 @@ export async function renderRoundShareImage(
     lx -= 28;
 
     ctx.fillStyle = COLORS.ink2;
-    ctx.fillText('Group avg', lx, y + legendH / 2);
-    lx -= ctx.measureText('Group avg').width + 14;
-    fillRoundRect(ctx, lx - 2, y + legendH / 2 - 9, 4, 18, 2, COLORS.slate);
+    ctx.fillText('Avg (excl. self)', lx, y + legendH / 2);
+    lx -= ctx.measureText('Avg (excl. self)').width + 12;
+    fillRoundRect(ctx, lx - 22, y + legendH / 2 - 4, 22, 8, 4, COLORS.ink1);
   } else if (layout.mode !== 'bars') {
     ctx.textAlign = 'right';
     ctx.font = `600 19px ${FONT_BODY}`;
     ctx.fillStyle = COLORS.ink3;
     ctx.fillText(
-      results.showPublicSelfGap ? 'Format: avg (self) · gap vs group' : 'Format: avg / 10 (range)',
+      results.showPublicSelfGap
+        ? 'Avg excl. self · format: avg (self)'
+        : results.allowSelfRating
+          ? 'Avg excl. self · out of 10'
+          : 'Format: avg / 10 (range)',
       PAD_X + INNER_W - 4,
       y + legendH / 2
     );

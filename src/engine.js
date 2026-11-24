@@ -226,8 +226,9 @@ export function describeRoundRules(settings) {
       return {
         visibilityLabel: 'Open votes',
         selfLabel: 'Include self',
-        headline: 'Everyone will see who gave which score — including self-ratings.',
-        shortTag: 'Names & Self vs. Group shown publicly',
+        headline:
+          'Everyone will see who gave which score. Your self-rating is shown for comparison only and is NOT counted in your average.',
+        shortTag: 'Avg excludes self · Names & self-rating shown',
       };
     }
     return {
@@ -244,8 +245,8 @@ export function describeRoundRules(settings) {
       visibilityLabel: 'Anonymous votes',
       selfLabel: 'Include self',
       headline:
-        'Ratings for others stay anonymous (shuffled, no names). Each player’s own self-rating vs. group average IS shown publicly.',
-      shortTag: 'Peer votes anonymous · Self-rating shown',
+        'Peer ratings stay anonymous (shuffled, no names). Self-ratings are NOT counted in averages, and each player’s self-rating vs. group IS shown publicly.',
+      shortTag: 'Peer votes anonymous · Avg excludes self · Self shown',
     };
   }
 
@@ -254,8 +255,8 @@ export function describeRoundRules(settings) {
       visibilityLabel: 'Anonymous votes',
       selfLabel: 'Include self',
       headline:
-        'Averages and shuffled score chips only — no names attached. Your own Self vs. Group comparison is shown privately only to you.',
-      shortTag: 'Strictly anonymous · Self vs. Group private',
+        'Averages (excluding self-ratings) and shuffled peer scores only — no names attached. Your own Self vs. Group comparison is shown privately only to you.',
+      shortTag: 'Strictly anonymous · Avg excludes self',
     };
   }
 
@@ -310,10 +311,14 @@ function assignRanks(rows, metricKey) {
  * Computes leaderboard rows, privacy-aware breakdowns, private self insight,
  * and superlative awards for a round.
  *
+ * NOTE: A player's average, rank, range, spread, and anonymous score chips are
+ * computed STRICTLY from OTHER players' ratings (never including self-rating).
+ * Self-rating is kept strictly separate to show Self vs. Group comparison.
+ *
  * @param {object} round - round descriptor
  * @param {object} ballotsByVoter - map `{ [voterUid]: { [targetUid]: integer 0..10 } }`
  * @param {string} currentUid - viewer's own uid (for private self insight in strict anonymous mode)
- * @param {string} sortBy - 'overall' | 'group' | 'delta'
+ * @param {string} sortBy - 'overall' | 'delta'
  */
 export function computeRoundResults(round, ballotsByVoter = {}, currentUid = null, sortBy = 'overall') {
   if (!round || !round.playerSnapshots) {
@@ -342,8 +347,7 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
   );
 
   const rawRows = players.map((player) => {
-    const allScores = [];
-    const othersScores = [];
+    const peerScores = [];
     const openBreakdown = [];
     let selfScore = null;
 
@@ -358,11 +362,10 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
       const isSelf = voterUid === player.uid;
       if (isSelf && !allowSelfRating) continue;
 
-      allScores.push(val);
       if (isSelf) {
         selfScore = val;
       } else {
-        othersScores.push(val);
+        peerScores.push(val);
       }
 
       if (isOpen) {
@@ -377,21 +380,19 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
       }
     }
 
-    const totalSum = allScores.reduce((acc, n) => acc + n, 0);
-    const overallAvg = allScores.length ? totalSum / allScores.length : null;
-    const othersSum = othersScores.reduce((acc, n) => acc + n, 0);
-    const othersAvg = othersScores.length ? othersSum / othersScores.length : null;
+    const peerSum = peerScores.reduce((acc, n) => acc + n, 0);
+    const peerAvg = peerScores.length ? peerSum / peerScores.length : null;
     const rawDelta =
-      selfScore !== null && othersAvg !== null ? selfScore - othersAvg : null;
+      selfScore !== null && peerAvg !== null ? selfScore - peerAvg : null;
 
-    const minScore = allScores.length ? Math.min(...allScores) : null;
-    const maxScore = allScores.length ? Math.max(...allScores) : null;
+    const minScore = peerScores.length ? Math.min(...peerScores) : null;
+    const maxScore = peerScores.length ? Math.max(...peerScores) : null;
     const spread = minScore !== null && maxScore !== null ? maxScore - minScore : null;
 
-    // Sort anonymous chips ascending so insertion order CANNOT leak which voter gave which score
-    const sortedScores = [...allScores].sort((a, b) => a - b);
+    // Sort anonymous peer chips ascending so insertion order CANNOT leak which voter gave which score
+    const sortedScores = [...peerScores].sort((a, b) => a - b);
 
-    // Sort open breakdown: self first, then score desc, then name
+    // Sort open breakdown: self first (not included in avg), then score desc, then name
     openBreakdown.sort((a, b) => {
       if (a.isSelf !== b.isSelf) return a.isSelf ? -1 : 1;
       if (b.score !== a.score) return b.score - a.score;
@@ -403,22 +404,23 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
       uid: player.uid,
       name: player.name,
       colorIndex: player.colorIndex || 0,
-      overallAvg,
-      overallCount: allScores.length,
+      overallAvg: peerAvg,
+      overallCount: peerScores.length,
       minScore,
       maxScore,
       spread,
       sortedScores,
-      // Only expose group/self/delta on row when policy allows it publicly
-      othersAvg: showPublicSelfGap ? othersAvg : null,
-      othersCount: showPublicSelfGap ? othersScores.length : null,
+      // Peer average excluding self (identical to overallAvg)
+      othersAvg: peerAvg,
+      othersCount: peerScores.length,
+      // Only expose self-rating & delta on row when policy allows it publicly
       selfScore: showPublicSelfGap ? selfScore : null,
       delta: showPublicSelfGap ? rawDelta : null,
       openBreakdown: isOpen ? openBreakdown : null,
       // Keep internal metrics solely for personal viewer card check below
       _privateSelf: player.uid === currentUid ? selfScore : null,
-      _privateOthersAvg: player.uid === currentUid ? othersAvg : null,
-      _privateOthersCount: player.uid === currentUid ? othersScores.length : 0,
+      _privateOthersAvg: player.uid === currentUid ? peerAvg : null,
+      _privateOthersCount: player.uid === currentUid ? peerScores.length : 0,
       _privateDelta: player.uid === currentUid ? rawDelta : null,
     };
   });
@@ -446,10 +448,7 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
   );
 
   // Pick sort metric (fall back cleanly to overall if requested sort isn't permitted/available)
-  let effectiveSort = sortBy;
-  if ((effectiveSort === 'group' || effectiveSort === 'delta') && !showPublicSelfGap) {
-    effectiveSort = 'overall';
-  }
+  let effectiveSort = sortBy === 'delta' && showPublicSelfGap ? 'delta' : 'overall';
 
   const compareNullableDesc = (a, b) => {
     if (a === null && b === null) return 0;
@@ -458,7 +457,7 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
     return b - a;
   };
 
-  // Pre-compute overall rank first for tie-safe canonical numbering
+  // Pre-compute peer-avg rank first for tie-safe canonical numbering
   const byOverall = [...cleanRows].sort((a, b) => {
     const cmp = compareNullableDesc(a.overallAvg, b.overallAvg);
     if (Math.abs(cmp) > 1e-6) return cmp;
@@ -470,14 +469,7 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
   assignRanks(byOverall, 'overallAvg').forEach((r) => overallRankMap.set(r.uid, r.rank));
 
   let sortedRows;
-  if (effectiveSort === 'group') {
-    sortedRows = [...cleanRows].sort((a, b) => {
-      const cmp = compareNullableDesc(a.othersAvg, b.othersAvg);
-      if (Math.abs(cmp) > 1e-6) return cmp;
-      return compareNullableDesc(a.overallAvg, b.overallAvg) || a.name.localeCompare(b.name);
-    });
-    sortedRows = assignRanks(sortedRows, 'othersAvg');
-  } else if (effectiveSort === 'delta') {
+  if (effectiveSort === 'delta') {
     sortedRows = [...cleanRows].sort((a, b) => {
       const cmp = compareNullableDesc(a.delta, b.delta);
       if (Math.abs(cmp) > 1e-6) return cmp;
@@ -595,16 +587,20 @@ export function buildShareSummary(round, ballotsByVoter = {}) {
   const rules = describeRoundRules(round);
   const lines = [
     `Out of Ten — Round ${round.number}: ${round.topic}`,
-    `Mode: ${rules.visibilityLabel} · ${rules.selfLabel} (${res.voterCount}/${res.eligibleCount} voted)`,
+    `Mode: ${rules.visibilityLabel} · ${rules.selfLabel} (${res.voterCount}/${res.eligibleCount} voted${res.allowSelfRating ? ', avg excl. self' : ''})`,
     '',
   ];
   res.rows.forEach((row) => {
     const rankStr = row.rank !== null ? `#${row.rank}` : '—';
-    const avgStr = row.overallAvg !== null ? `${formatScore(row.overallAvg)}/10` : 'No votes';
-    if (res.showPublicSelfGap && row.selfScore !== null && row.othersAvg !== null) {
-      lines.push(
-        `${rankStr} ${row.name} — ${avgStr} (self: ${row.selfScore}, group: ${formatScore(row.othersAvg)}, ${formatDelta(row.delta)})`
-      );
+    const avgStr = row.overallAvg !== null ? `${formatScore(row.overallAvg)}/10` : 'No peer votes';
+    if (res.showPublicSelfGap && row.selfScore !== null) {
+      if (row.overallAvg !== null) {
+        lines.push(
+          `${rankStr} ${row.name} — ${avgStr} (self: ${row.selfScore}, ${formatDelta(row.delta)} vs avg)`
+        );
+      } else {
+        lines.push(`${rankStr} ${row.name} — ${avgStr} (self: ${row.selfScore})`);
+      }
     } else if (row.minScore !== null) {
       lines.push(`${rankStr} ${row.name} — ${avgStr} (range ${row.minScore}–${row.maxScore})`);
     } else {

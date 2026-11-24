@@ -1547,6 +1547,13 @@ h3 {
   border-radius: 1.5px;
 }
 
+.legend-dot.is-bar {
+  width: 14px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ink-1);
+}
+
 .legend-dot.is-group {
   width: 3px;
   height: 11px;
