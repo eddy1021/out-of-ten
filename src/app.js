@@ -34,6 +34,7 @@ import {
   saveStoredFirebaseConfig,
 } from './transport-firebase.js';
 import { LocalTransport } from './transport-local.js';
+import { canNativeShareFile, renderRoundShareImage } from './share-image.js';
 import {
   ICONS,
   closeModal,
@@ -1670,8 +1671,11 @@ function renderResults(stage, snap) {
         <div class="row-between">
           <span class="text-muted">${esc(rules.shortTag)}</span>
           <div class="row-gap">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-save-image">
+              ${ICONS.image} Save image
+            </button>
             <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-summary">
-              ${ICONS.copy} Copy summary
+              ${ICONS.copy} Copy text
             </button>
             ${
               host
@@ -1827,6 +1831,10 @@ function renderResults(stage, snap) {
   }
 
   // Handlers
+  stage.querySelector('#btn-save-image').addEventListener('click', () => {
+    openShareImageModal(round, ballots, meta.code);
+  });
+
   stage.querySelector('#btn-copy-summary').addEventListener('click', async () => {
     const text = buildShareSummary(round, ballots);
     const ok = await copyToClipboard(text);
@@ -2135,9 +2143,12 @@ function renderHistoryCard(snap, completedRounds) {
             </span>
           </summary>
           <div class="history-mini-list">${mini}</div>
-          <div style="margin-top:8px;">
+          <div class="row-gap" style="margin-top:8px;">
+            <button type="button" class="btn btn-ghost btn-xs" data-save-history-img="${esc(r.id)}">
+              ${ICONS.image} Save image
+            </button>
             <button type="button" class="btn btn-ghost btn-xs" data-copy-history="${esc(r.id)}">
-              ${ICONS.copy} Copy round summary
+              ${ICONS.copy} Copy text
             </button>
           </div>
         </details>
@@ -2156,6 +2167,16 @@ function renderHistoryCard(snap, completedRounds) {
 }
 
 function bindHistoryActions(stage, snap) {
+  stage.querySelectorAll('[data-save-history-img]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const roundId = btn.dataset.saveHistoryImg;
+      const r = snap.rounds && snap.rounds[roundId];
+      if (!r) return;
+      const ballots = (snap.ballots && snap.ballots[roundId]) || {};
+      openShareImageModal(r, ballots, snap.meta ? snap.meta.code : '');
+    });
+  });
+
   stage.querySelectorAll('[data-copy-history]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const roundId = btn.dataset.copyHistory;
@@ -2171,6 +2192,151 @@ function bindHistoryActions(stage, snap) {
 /* ==========================================================================
    Modals: Prompt Picker & Online Firebase Setup
    ========================================================================== */
+
+function openShareImageModal(round, ballots, roomCode = '') {
+  const previewResults = computeRoundResults(round, ballots, appState.uid, 'overall');
+  const canTogglePrivateSelf = Boolean(
+    previewResults.allowSelfRating &&
+      !previewResults.showPublicSelfGap &&
+      previewResults.mySelfInsight
+  );
+  const formattedCode = roomCode ? formatRoomCode(roomCode) : '';
+  let includePrivateSelf = false;
+  let currentAsset = null;
+  let renderSeq = 0;
+
+  openModal({
+    title: `Save Round ${round.number} Image`,
+    bodyHtml: `
+      <div class="share-preview-frame" id="share-img-frame">
+        <span class="text-muted" id="share-img-loading">Rendering photo…</span>
+        <img id="share-img-preview" class="share-preview-img" alt="Round ${esc(round.number)} results card" hidden />
+      </div>
+      <div class="share-preview-meta">
+        <span id="share-img-layout-note">Preparing card…</span>
+        <span>Tip: on iPhone/Android you can press &amp; hold the image to save it</span>
+      </div>
+      ${
+        canTogglePrivateSelf
+          ? `
+          <label class="checkbox-row" style="margin-top:2px;">
+            <input type="checkbox" id="chk-share-private-self" />
+            <span>
+              <strong>Include my private Self vs. Group box</strong><br />
+              <span class="field-hint">
+                Strict anonymous round — off by default so your own self-rating isn’t shared accidentally.
+              </span>
+            </span>
+          </label>`
+          : ''
+      }
+    `,
+    footerHtml: `
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-share-download" disabled>
+        ${ICONS.download} Download PNG
+      </button>
+      <button type="button" class="btn btn-primary btn-sm" id="btn-share-native" hidden>
+        ${ICONS.share} Share / Save
+      </button>
+    `,
+    onMount: ({ bodyEl, footerEl }) => {
+      const imgEl = bodyEl.querySelector('#share-img-preview');
+      const loadingEl = bodyEl.querySelector('#share-img-loading');
+      const noteEl = bodyEl.querySelector('#share-img-layout-note');
+      const dlBtn = footerEl.querySelector('#btn-share-download');
+      const shareBtn = footerEl.querySelector('#btn-share-native');
+      const selfChk = bodyEl.querySelector('#chk-share-private-self');
+
+      const refreshPreview = async () => {
+        const mySeq = ++renderSeq;
+        if (loadingEl) {
+          loadingEl.textContent = 'Rendering photo…';
+          loadingEl.hidden = !imgEl.hidden;
+        }
+        dlBtn.disabled = true;
+        shareBtn.disabled = true;
+
+        try {
+          const asset = await renderRoundShareImage(round, ballots, {
+            currentUid: appState.uid,
+            includeMyPrivateSelf: includePrivateSelf,
+            roomCode: formattedCode,
+          });
+          if (mySeq !== renderSeq) return;
+          currentAsset = asset;
+          imgEl.src = asset.dataUrl;
+          imgEl.hidden = false;
+          if (loadingEl) loadingEl.hidden = true;
+          noteEl.textContent = `${asset.layout.label} · ${asset.width}×${asset.height} PNG`;
+          dlBtn.disabled = false;
+
+          const nativeSupported = canNativeShareFile(asset.file);
+          shareBtn.hidden = !nativeSupported;
+          shareBtn.disabled = false;
+          if (nativeSupported) {
+            dlBtn.classList.remove('btn-primary');
+            dlBtn.classList.add('btn-secondary');
+          } else {
+            dlBtn.classList.remove('btn-secondary');
+            dlBtn.classList.add('btn-primary');
+          }
+        } catch (err) {
+          if (mySeq !== renderSeq) return;
+          console.error('Failed to render share card:', err);
+          if (loadingEl) {
+            loadingEl.textContent = 'Could not generate image on this browser.';
+            loadingEl.hidden = false;
+          }
+          showToast(err.message || 'Could not generate image.', 'error');
+        }
+      };
+
+      if (selfChk) {
+        selfChk.addEventListener('change', (e) => {
+          includePrivateSelf = Boolean(e.target.checked);
+          refreshPreview();
+        });
+      }
+
+      dlBtn.addEventListener('click', () => {
+        if (!currentAsset) return;
+        const a = document.createElement('a');
+        let objectUrl = null;
+        if (currentAsset.blob) {
+          objectUrl = URL.createObjectURL(currentAsset.blob);
+          a.href = objectUrl;
+        } else {
+          a.href = currentAsset.dataUrl;
+        }
+        a.download = currentAsset.filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        if (objectUrl) {
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
+        }
+        showToast('Saved results image!', 'success');
+      });
+
+      shareBtn.addEventListener('click', async () => {
+        if (!currentAsset || !currentAsset.file) return;
+        try {
+          await navigator.share({
+            files: [currentAsset.file],
+            title: `Out of Ten — Round ${round.number}`,
+            text: round.topic || 'Out of Ten results',
+          });
+        } catch (err) {
+          // User cancelling the native share sheet raises AbortError; ignore quietly
+          if (err && err.name === 'AbortError') return;
+          showToast('Share unavailable — tap Download PNG instead.');
+        }
+      });
+
+      refreshPreview();
+    },
+  });
+}
 
 function openPromptPickerModal(onPick) {
   const groupsHtml = PROMPT_CATEGORIES.map(

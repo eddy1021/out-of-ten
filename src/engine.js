@@ -3,7 +3,7 @@
  * Shared across Local Demo transport and Firebase Realtime Database transport.
  */
 
-export const MAX_PLAYERS = 20;
+export const MAX_PLAYERS = 30;
 export const MIN_SCORE = 0;
 export const MAX_SCORE = 10;
 export const MAX_NAME_LEN = 24;

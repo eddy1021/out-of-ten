@@ -34,6 +34,8 @@ export const ICONS = {
   share: `<svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v9M6.5 6.5L10 3l3.5 3.5M4 12v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   plus: `<svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
   unlock: `<svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="4" y="9" width="12" height="8" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M7 9V6.5a3 3 0 0 1 5.6-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+  image: `<svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><circle cx="7.5" cy="8.2" r="1.2" fill="currentColor"/><path d="M4.5 14l3.5-3.5 2.5 2.5 2-2 3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  download: `<svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 15.5h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };
 
 export function showToast(message, tone = 'neutral', durationMs = 2600) {
