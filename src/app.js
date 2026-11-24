@@ -1831,7 +1831,7 @@ function renderResults(stage, snap) {
 
   // Handlers
   stage.querySelector('#btn-save-image').addEventListener('click', () => {
-    openShareImageModal(round, ballots, meta.code);
+    openShareImageModal(round, ballots);
   });
 
   stage.querySelector('#btn-copy-summary').addEventListener('click', async () => {
@@ -2091,7 +2091,7 @@ function renderLeaderboardRow(row, results, index) {
               showGap
                 ? `
                 <div class="self-gap-row">
-                  <span>Self <strong>${row.selfScore}</strong> <span class="text-muted" style="font-size:0.75rem;">(not in avg)</span></span>
+                  <span>Self <strong>${row.selfScore}</strong></span>
                   ${
                     row.delta !== null
                       ? `<span class="delta-pill ${deltaClass}">${esc(formatDelta(row.delta))} vs group</span>`
@@ -2172,7 +2172,7 @@ function bindHistoryActions(stage, snap) {
       const r = snap.rounds && snap.rounds[roundId];
       if (!r) return;
       const ballots = (snap.ballots && snap.ballots[roundId]) || {};
-      openShareImageModal(r, ballots, snap.meta ? snap.meta.code : '');
+      openShareImageModal(r, ballots);
     });
   });
 
@@ -2192,14 +2192,13 @@ function bindHistoryActions(stage, snap) {
    Modals: Prompt Picker & Online Firebase Setup
    ========================================================================== */
 
-function openShareImageModal(round, ballots, roomCode = '') {
+function openShareImageModal(round, ballots) {
   const previewResults = computeRoundResults(round, ballots, appState.uid, 'overall');
   const canTogglePrivateSelf = Boolean(
     previewResults.allowSelfRating &&
       !previewResults.showPublicSelfGap &&
       previewResults.mySelfInsight
   );
-  const formattedCode = roomCode ? formatRoomCode(roomCode) : '';
   let includePrivateSelf = false;
   let currentAsset = null;
   let renderSeq = 0;
@@ -2259,7 +2258,6 @@ function openShareImageModal(round, ballots, roomCode = '') {
           const asset = await renderRoundShareImage(round, ballots, {
             currentUid: appState.uid,
             includeMyPrivateSelf: includePrivateSelf,
-            roomCode: formattedCode,
           });
           if (mySeq !== renderSeq) return;
           currentAsset = asset;

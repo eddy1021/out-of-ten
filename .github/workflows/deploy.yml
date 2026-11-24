@@ -80,6 +80,36 @@ jobs:
           print(f"Generated _site/config.js for project: {cfg['projectId']}")
           PY
 
+      - name: Cache-bust static assets with commit SHA
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+
+          sha = (os.environ.get('GITHUB_SHA') or 'dev')[:7]
+          site = pathlib.Path('_site')
+
+          # Stamp CSS and entry JS inside index.html + quiet build tag in footer
+          idx = site / 'index.html'
+          html = idx.read_text(encoding='utf-8')
+          html = html.replace('href="./styles.css"', f'href="./styles.css?v={sha}"')
+          html = html.replace('src="./src/app.js"', f'src="./src/app.js?v={sha}"')
+          html = html.replace(
+              'No accounts or voice audio required\n      </p>',
+              f'No accounts or voice audio required · <span title="Build version">v{sha}</span>\n      </p>',
+          )
+          idx.write_text(html, encoding='utf-8')
+
+          # Stamp every relative ES-module import inside src/*.js so mobile browsers
+          # never keep stale cached modules alongside a newer index.html
+          imp_re = re.compile(r"""(from\s+['"])(\.\.?/[^'"?]+\.js)(['"])""")
+          for js_file in sorted((site / 'src').glob('*.js')):
+              text = js_file.read_text(encoding='utf-8')
+              updated = imp_re.sub(rf'\1\2?v={sha}\3', text)
+              js_file.write_text(updated, encoding='utf-8')
+
+          print(f'Stamped static assets with ?v={sha}')
+          PY
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

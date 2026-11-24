@@ -335,7 +335,7 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
 
     ctx.font = `600 17px ${FONT_BODY}`;
     ctx.fillStyle = COLORS.ink3;
-    ctx.fillText(results.allowSelfRating ? 'avg excl. self' : 'out of 10', rightX, topY + 56);
+    ctx.fillText('out of 10', rightX, topY + 56);
   }
 
   // Name + subtitle
@@ -417,7 +417,7 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
   if (showGap) {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    const baseText = `Self ${row.selfScore}  (not in avg)`;
+    const baseText = `Self ${row.selfScore}`;
     ctx.font = `600 20px ${FONT_BODY}`;
     ctx.fillStyle = COLORS.ink2;
     ctx.fillText(baseText, rowX + pad, footY + 13);
@@ -574,7 +574,7 @@ function drawCompactRow(ctx, x, y, w, h, row, showSelf, isLast) {
 export async function renderRoundShareImage(
   round,
   ballotsByVoter = {},
-  { currentUid = null, includeMyPrivateSelf = false, roomCode = '' } = {}
+  { currentUid = null, includeMyPrivateSelf = false } = {}
 ) {
   if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
     try {
@@ -690,7 +690,7 @@ export async function renderRoundShareImage(
 
   let y = headerTopPad;
 
-  // 2. Brand Header
+  // 2. Brand Header (no room code to keep shared photos clean & private)
   drawBrandMark(ctx, PAD_X, y + 6, 48);
   ctx.font = `800 32px ${FONT_DISPLAY}`;
   ctx.fillStyle = COLORS.ink1;
@@ -698,17 +698,24 @@ export async function renderRoundShareImage(
   ctx.textBaseline = 'middle';
   ctx.fillText('Out of Ten', PAD_X + 62, y + 31);
 
-  const codePillText = roomCode ? `ROOM ${roomCode}` : `ROUND ${round.number}`;
-  ctx.font = `700 20px ${FONT_BODY}`;
-  const pillW = Math.ceil(ctx.measureText(codePillText).width + 32);
-  drawPill(ctx, PAD_X + INNER_W - pillW, y + 11, codePillText, {
-    bg: COLORS.surface,
-    fg: COLORS.ink2,
-    border: COLORS.border,
-    font: `700 20px ${FONT_BODY}`,
-    height: 40,
-    padX: 16,
-  });
+  const roundTs = round.revealedAt || round.startedAt || Date.now();
+  let dateLabel = '';
+  try {
+    dateLabel = new Date(roundTs).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    dateLabel = '';
+  }
+  if (dateLabel) {
+    ctx.font = `600 21px ${FONT_BODY}`;
+    ctx.fillStyle = COLORS.ink3;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(dateLabel, PAD_X + INNER_W, y + 31);
+  }
 
   y += brandRowH + 26;
 
@@ -764,10 +771,14 @@ export async function renderRoundShareImage(
   });
 
   hy += heroTopicH + 22;
+  const heroSubParts = [];
+  if (results.allowSelfRating) heroSubParts.push('Avg excludes self');
+  heroSubParts.push(`${layout.total} player${layout.total === 1 ? '' : 's'}`);
+  if (layout.mode === 'split') heroSubParts.push('Top 10 & bottom 10');
   ctx.font = `500 21px ${FONT_BODY}`;
   ctx.fillStyle = COLORS.ink3;
   ctx.textBaseline = 'middle';
-  ctx.fillText(`${rules.shortTag}  ·  ${layout.label}`, hx, hy + heroSubH / 2);
+  ctx.fillText(heroSubParts.join('  ·  '), hx, hy + heroSubH / 2);
 
   y += heroCardH;
 
@@ -872,10 +883,9 @@ export async function renderRoundShareImage(
       lx -= 28;
     }
 
-    const avgLbl = results.allowSelfRating ? 'Avg (excl. self)' : 'Avg';
     ctx.fillStyle = COLORS.ink2;
-    ctx.fillText(avgLbl, lx, midY);
-    lx -= ctx.measureText(avgLbl).width + 14;
+    ctx.fillText('Avg', lx, midY);
+    lx -= ctx.measureText('Avg').width + 14;
     fillRoundRect(ctx, lx - 3, midY - 9, 6, 18, 3, COLORS.ink1);
     lx -= 28;
 
@@ -888,11 +898,7 @@ export async function renderRoundShareImage(
     ctx.font = `600 19px ${FONT_BODY}`;
     ctx.fillStyle = COLORS.ink3;
     ctx.fillText(
-      results.showPublicSelfGap
-        ? 'Avg excl. self · format: avg (self)'
-        : results.allowSelfRating
-          ? 'Avg excl. self · out of 10'
-          : 'Format: avg / 10 (range)',
+      results.showPublicSelfGap ? 'avg (self)' : 'out of 10',
       PAD_X + INNER_W - 4,
       y + legendH / 2
     );
@@ -989,26 +995,13 @@ export async function renderRoundShareImage(
     });
   }
 
-  // 8. Footer watermark with date (handy when looking back at saved photos!)
+  // 8. Footer watermark
   const footMidY = totalHeight - footerH / 2;
-  const roundTs = round.revealedAt || round.startedAt || Date.now();
-  let dateLabel = '';
-  try {
-    dateLabel = new Date(roundTs).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  } catch {
-    dateLabel = '';
-  }
-  const footParts = ['Out of Ten', 'Scale 0–10'];
-  if (dateLabel) footParts.push(dateLabel);
   ctx.font = `600 19px ${FONT_BODY}`;
   ctx.fillStyle = COLORS.ink3;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(footParts.join('  ·  '), CARD_WIDTH / 2, footMidY);
+  ctx.fillText('Out of Ten  ·  Scale 0–10', CARD_WIDTH / 2, footMidY);
 
   // Convert to PNG blob + data URL (data URL also enables reliable long-press "Save to Photos" on iOS Safari)
   const dataUrl = canvas.toDataURL('image/png');

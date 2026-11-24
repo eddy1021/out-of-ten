@@ -486,6 +486,7 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
   }));
 
   // Compute fun superlatives using only publicly permitted fields
+  const formatTieTitle = (list) => (list.length === 1 ? list[0].name : `${list.length} players tied`);
   const awards = [];
   const scoredRows = byOverall.filter((r) => r.overallAvg !== null);
   if (scoredRows.length >= 1) {
@@ -494,7 +495,7 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
     awards.push({
       id: 'top',
       label: leaders.length > 1 ? 'Co-Leaders' : 'Top Ranked',
-      names: leaders.map((l) => l.name).join(' & '),
+      names: formatTieTitle(leaders),
       detail: `${formatScore(topAvg)} / 10 avg`,
       tone: 'gold',
     });
@@ -509,8 +510,11 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
       awards.push({
         id: 'split',
         label: 'Biggest Split',
-        names: spicy.map((l) => l.name).join(' & '),
-        detail: `${spicy[0].minScore}–${spicy[0].maxScore} range (${maxSpread} pt gap)`,
+        names: formatTieTitle(spicy),
+        detail:
+          spicy.length === 1
+            ? `${spicy[0].minScore}–${spicy[0].maxScore} range (${maxSpread} pt gap)`
+            : `${maxSpread} pt gap`,
         tone: 'accent',
       });
     }
@@ -519,8 +523,13 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
       awards.push({
         id: 'consensus',
         label: 'Most Unanimous',
-        names: agreed.map((l) => l.name).join(' & '),
-        detail: minSpread === 0 ? `All scored ${agreed[0].minScore}` : `${minSpread} pt range`,
+        names: formatTieTitle(agreed),
+        detail:
+          minSpread === 0
+            ? agreed.length === 1
+              ? `All scored ${agreed[0].minScore}`
+              : 'Unanimous (0 pt gap)'
+            : `${minSpread} pt range`,
         tone: 'sage',
       });
     }
@@ -535,7 +544,7 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
         awards.push({
           id: 'confident',
           label: 'Highest Self-Belief',
-          names: confident.map((l) => l.name).join(' & '),
+          names: formatTieTitle(confident),
           detail: `${formatDelta(maxDelta)} vs. group`,
           tone: 'accent',
         });
@@ -546,7 +555,7 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
         awards.push({
           id: 'humble',
           label: 'Most Humble',
-          names: humble.map((l) => l.name).join(' & '),
+          names: formatTieTitle(humble),
           detail: `${formatDelta(minDelta)} vs. group`,
           tone: 'slate',
         });
@@ -557,8 +566,13 @@ export function computeRoundResults(round, ballotsByVoter = {}, currentUid = nul
         awards.push({
           id: 'accurate',
           label: 'Most Self-Aware',
-          names: spotOn.map((l) => l.name).join(' & '),
-          detail: `${formatDelta(spotOn[0].delta)} from group avg`,
+          names: formatTieTitle(spotOn),
+          detail:
+            spotOn.length === 1
+              ? `${formatDelta(spotOn[0].delta)} from group avg`
+              : bestMatch < 0.05
+                ? '0.0 from group avg'
+                : `±${formatScore(bestMatch)} from group avg`,
           tone: 'sage',
         });
       }
