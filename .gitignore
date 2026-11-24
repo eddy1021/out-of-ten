@@ -1,0 +1,7 @@
+# Keep your local Firebase config out of Git history.
+# GitHub Pages deployment generates config.js from the FIREBASE_CONFIG_JSON secret.
+config.js
+
+.DS_Store
+*.log
+_site/

@@ -1,0 +1,97 @@
+name: Deploy Out of Ten to GitHub Pages
+
+on:
+  push:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Stage static site and generate config.js
+        env:
+          FIREBASE_CONFIG_JSON: ${{ secrets.FIREBASE_CONFIG_JSON }}
+        run: |
+          mkdir -p _site
+          cp index.html styles.css _site/
+          cp -r src _site/
+          touch _site/.nojekyll
+          python3 - <<'PY'
+          import json, os, re, sys
+
+          raw = (os.environ.get('FIREBASE_CONFIG_JSON') or '').strip()
+          if not raw:
+              print('::warning::FIREBASE_CONFIG_JSON secret is empty; deploying in Local Demo mode.')
+              with open('_site/config.js', 'w', encoding='utf-8') as f:
+                  f.write('export const FIREBASE_CONFIG = null;\n')
+              sys.exit(0)
+
+          start = raw.find('{')
+          end = raw.rfind('}')
+          if start == -1 or end <= start:
+              print('::error::FIREBASE_CONFIG_JSON must be a JSON object starting with { and ending with }.')
+              sys.exit(1)
+
+          body = raw[start:end + 1]
+          try:
+              cfg = json.loads(body)
+          except json.JSONDecodeError:
+              # Also accept JS object literal syntax copied straight from Firebase Console
+              token_re = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|//[^\n]*|/\*[\s\S]*?\*/')
+              def repl(m):
+                  tok = m.group(0)
+                  if tok.startswith('"'):
+                      return tok
+                  if tok.startswith("'"):
+                      inner = tok[1:-1].replace("\\'", "'").replace('"', '\\"')
+                      return f'"{inner}"'
+                  return ''
+              body = token_re.sub(repl, body)
+              body = re.sub(r'([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:', r'\1"\2":', body)
+              body = re.sub(r',\s*([}\]])', r'\1', body)
+              cfg = json.loads(body)
+
+          missing = [k for k in ('apiKey', 'databaseURL', 'projectId', 'appId') if not cfg.get(k)]
+          if missing:
+              print(f"::error::FIREBASE_CONFIG_JSON is missing required field(s): {', '.join(missing)}")
+              sys.exit(1)
+
+          with open('_site/config.js', 'w', encoding='utf-8') as f:
+              f.write('export const FIREBASE_CONFIG = ')
+              json.dump(cfg, f, indent=2)
+              f.write(';\n')
+
+          print(f"Generated _site/config.js for project: {cfg['projectId']}")
+          PY
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
