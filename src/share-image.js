@@ -446,6 +446,15 @@ function drawBarModeRow(ctx, y, row, results, barRowH) {
     ctx.font = `500 17px ${FONT_BODY}`;
     ctx.fillStyle = COLORS.ink3;
     ctx.fillText('scale 0–10', rightX, footY + 13);
+  } else if (results.showPublicSelfGap) {
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = `500 18px ${FONT_BODY}`;
+    ctx.fillStyle = COLORS.ink3;
+    ctx.fillText('Self — (did not vote)', rowX + pad, footY + 13);
+    ctx.textAlign = 'right';
+    ctx.font = `500 17px ${FONT_BODY}`;
+    ctx.fillText('scale 0–10', rightX, footY + 13);
   } else {
     ctx.font = `600 17px ${FONT_BODY}`;
     ctx.fillStyle = COLORS.ink3;
@@ -487,23 +496,24 @@ function drawCompactRow(ctx, x, y, w, h, row, showSelf, isLast) {
   // Small avatar chip
   drawAvatar(ctx, x + 88, centerY - 19, 38, row.name, row.colorIndex);
 
-  // Right-side score: `5.7(4)` or `5.7`
+  // Right-side score columns: keep EVERY row pinned to the table's column layout,
+  // even if a player was AFK and didn't submit a self-rating.
   const rightX = x + w - 24;
   const avgStr = row.overallAvg !== null ? formatScore(row.overallAvg) : '—';
-  const hasSelf = showSelf && row.selfScore !== null;
 
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   let reservedRight = 130;
 
-  if (hasSelf) {
-    // Laser-aligned fixed columns so 1-digit `(4)` and 2-digit `(10)` never shift the average left/right
+  if (showSelf) {
+    // Laser-aligned fixed columns so 1-digit `(4)`, 2-digit `(10)`, and AFK `(—)` align perfectly
     const selfColW = 70;
     const avgRightX = rightX - selfColW;
-    const selfText = `(${row.selfScore})`;
+    const hasSelf = row.selfScore !== null;
+    const selfText = hasSelf ? `(${row.selfScore})` : '(—)';
 
     ctx.font = `700 24px ${FONT_DISPLAY}`;
-    ctx.fillStyle = COLORS.accent;
+    ctx.fillStyle = hasSelf ? COLORS.accent : COLORS.ink3;
     ctx.textAlign = 'left';
     ctx.fillText(selfText, avgRightX + 8, centerY + 1);
 
@@ -512,10 +522,9 @@ function drawCompactRow(ctx, x, y, w, h, row, showSelf, isLast) {
     ctx.textAlign = 'right';
     ctx.fillText(avgStr, avgRightX, centerY + 1);
 
-    reservedRight = selfColW + 96;
-
-    // Optional signed delta badge aligned consistently to the left of AVG
-    if (row.delta !== null) {
+    const pillW = 76;
+    const px = avgRightX - 96 - pillW;
+    if (hasSelf && row.delta !== null) {
       const dTxt = formatDelta(row.delta);
       let dBg = COLORS.sageSoft;
       let dFg = COLORS.sageInk;
@@ -526,25 +535,29 @@ function drawCompactRow(ctx, x, y, w, h, row, showSelf, isLast) {
         dBg = COLORS.slateSoft;
         dFg = COLORS.slateInk;
       }
-      const pillW = 76;
-      const px = avgRightX - 96 - pillW;
       fillRoundRect(ctx, px, centerY - 13, pillW, 26, 13, dBg);
       ctx.font = `700 17px ${FONT_BODY}`;
       ctx.fillStyle = dFg;
       ctx.textAlign = 'center';
       ctx.fillText(dTxt, px + pillW / 2, centerY + 0.5);
-      reservedRight = selfColW + 96 + pillW + 24;
+    } else {
+      ctx.font = `600 17px ${FONT_BODY}`;
+      ctx.fillStyle = COLORS.ink3;
+      ctx.textAlign = 'center';
+      ctx.fillText('—', px + pillW / 2, centerY + 0.5);
     }
+    reservedRight = selfColW + 96 + pillW + 24;
   } else {
     ctx.font = `800 29px ${FONT_DISPLAY}`;
     ctx.fillStyle = COLORS.ink1;
     ctx.fillText(avgStr, rightX, centerY + 1);
     if (row.minScore !== null && row.maxScore !== null) {
-      const rangeStr = `${row.minScore}–${row.maxScore}`;
+      const rangeStr =
+        row.minScore === row.maxScore ? `all ${row.minScore}` : `${row.minScore}–${row.maxScore}`;
       ctx.font = `500 18px ${FONT_BODY}`;
       ctx.fillStyle = COLORS.ink3;
-      ctx.fillText(rangeStr, rightX - 90, centerY + 1);
-      reservedRight = 185;
+      ctx.fillText(rangeStr, rightX - 96, centerY + 1);
+      reservedRight = 195;
     }
   }
 
@@ -947,8 +960,10 @@ export async function renderRoundShareImage(
         ctx.textAlign = 'left';
         ctx.fillText('(SELF)', avgRightX + 8, y + COMPACT_HEAD_H / 2);
       } else {
+        const hdrRightX = PAD_X + INNER_W - 24;
         ctx.textAlign = 'right';
-        ctx.fillText('RANGE  ·  AVG', PAD_X + INNER_W - 24, y + COMPACT_HEAD_H / 2);
+        ctx.fillText('RANGE', hdrRightX - 96, y + COMPACT_HEAD_H / 2);
+        ctx.fillText('AVG', hdrRightX, y + COMPACT_HEAD_H / 2);
       }
 
       let ry = y + COMPACT_HEAD_H + 5;
